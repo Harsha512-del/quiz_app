@@ -3,20 +3,14 @@ from mysql.connector import Error
 import streamlit as st
 
 
-# ── Connection factory ────────────────────────────────────────────────────────
 def get_connection():
-    """
-    Opens and returns a MySQL connection.
-    Called once via @st.cache_resource in app.py so the connection
-    is reused across Streamlit reruns rather than reopened every time.
-    """
     try:
         conn = mysql.connector.connect(
-            host=st.secrets["db"]["host"],
-            port=st.secrets["db"]["port"],
-            database=st.secrets["db"]["database"],
-            user=st.secrets["db"]["user"],
-            password=st.secrets["db"]["root@512"],
+            host=st.secrets["db"]["host"],        # key = "host"
+            port=st.secrets["db"]["port"],        # key = "port"
+            database=st.secrets["db"]["database"],# key = "database"
+            user=st.secrets["db"]["user"],        # key = "user"
+            password=st.secrets["db"]["password"],# key = "password"
             autocommit=False,
             connection_timeout=10,
         )
@@ -24,14 +18,7 @@ def get_connection():
     except Error as e:
         st.error(f"Database connection failed: {e}")
         st.stop()
-
-
-# ── Connection health check ───────────────────────────────────────────────────
 def ensure_connected(conn):
-    """
-    Pings the server and reconnects if the connection has gone stale.
-    Call this at the top of any function that uses the connection.
-    """
     try:
         conn.ping(reconnect=True, attempts=3, delay=1)
     except Error:
@@ -39,12 +26,7 @@ def ensure_connected(conn):
     return conn
 
 
-# ── Core query helpers ────────────────────────────────────────────────────────
 def execute_query(conn, query, params=()):
-    """
-    Runs an INSERT / UPDATE / DELETE statement and commits.
-    Returns the lastrowid so callers can get the new PK after an INSERT.
-    """
     ensure_connected(conn)
     cursor = conn.cursor()
     try:
@@ -60,10 +42,6 @@ def execute_query(conn, query, params=()):
 
 
 def fetch_all(conn, query, params=()):
-    """
-    Runs a SELECT and returns all rows as a list of dicts.
-    Returns an empty list on error so callers can safely iterate.
-    """
     ensure_connected(conn)
     cursor = conn.cursor(dictionary=True)
     try:
@@ -77,9 +55,6 @@ def fetch_all(conn, query, params=()):
 
 
 def fetch_one(conn, query, params=()):
-    """
-    Runs a SELECT and returns the first row as a dict, or None if not found.
-    """
     ensure_connected(conn)
     cursor = conn.cursor(dictionary=True)
     try:
@@ -92,14 +67,8 @@ def fetch_one(conn, query, params=()):
         cursor.close()
 
 
-# ── Schema initialisation ─────────────────────────────────────────────────────
 def init_schema(conn):
-    """
-    Creates all tables if they don't already exist.
-    Safe to call on every startup — uses IF NOT EXISTS throughout.
-    """
     statements = [
-        # Users
         """
         CREATE TABLE IF NOT EXISTS users (
             id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -109,7 +78,6 @@ def init_schema(conn):
             created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """,
-        # Questions
         """
         CREATE TABLE IF NOT EXISTS questions (
             id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -124,7 +92,6 @@ def init_schema(conn):
             created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """,
-        # Scores
         """
         CREATE TABLE IF NOT EXISTS scores (
             id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -139,7 +106,6 @@ def init_schema(conn):
         )
         """,
     ]
-
     ensure_connected(conn)
     cursor = conn.cursor()
     try:
@@ -153,19 +119,15 @@ def init_schema(conn):
         cursor.close()
 
 
-# ── Convenience: distinct category / difficulty lists ─────────────────────────
 def get_categories(conn):
-    """Returns a sorted list of distinct category strings from the questions table."""
     rows = fetch_all(conn, "SELECT DISTINCT category FROM questions ORDER BY category")
     return [r["category"] for r in rows]
 
 
 def get_difficulties(conn):
-    """Returns the three difficulty levels in logical order."""
     return ["easy", "medium", "hard"]
 
 
-# ── Close connection (call on app shutdown if needed) ─────────────────────────
 def close_connection(conn):
     try:
         if conn.is_connected():
